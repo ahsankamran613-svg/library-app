@@ -20,7 +20,7 @@ source venv/bin/activate      # Windows: venv\Scripts\activate
 # 2. Install dependencies
 pip install flask flask-sqlalchemy werkzeug
 
-# 3. Run the app RUn
+# 3. Run the app
 python app.py
 # Visit http://localhost:5000
 ```

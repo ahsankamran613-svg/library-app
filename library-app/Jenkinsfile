@@ -6,35 +6,28 @@ pipeline {
         TEST_IMAGE  = "library-tests"
         APP_PORT    = "5000"
         APP_URL     = "http://host.docker.internal:${APP_PORT}"
-        SENDER_EMAIL = "ahsankamran613@gmail.com"   // <-- Replace with your sender email
+        SENDER_EMAIL = "ahsankamran613@gmail.com"   // <-- Replace with your Gmail
     }
 
     stages {
 
-        // ─────────────────────────────────────────
-        // Stage 1: Checkout source code from GitHub
-        // ─────────────────────────────────────────
-        stage('Checkout') {
+         stage('Checkout') {
             steps {
                 echo "Checking out source code..."
                 checkout scm
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 2: Build the Flask application image
-        // ─────────────────────────────────────────
-        stage('Build App Image') {
+         stage('Build App Image') {
             steps {
                 echo "Building Flask app Docker image..."
-                sh "docker build -t ${APP_IMAGE} -f Dockerfile ."
+                dir('library-app') {
+                    sh "docker build -t ${APP_IMAGE} -f Dockerfile ."
+                }
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 3: Deploy the application container
-        // ─────────────────────────────────────────
-        stage('Deploy App') {
+         stage('Deploy App') {
             steps {
                 echo "Starting application container..."
                 sh """
@@ -43,47 +36,42 @@ pipeline {
                         --name ${APP_IMAGE} \
                         -p ${APP_PORT}:5000 \
                         ${APP_IMAGE}
-                """
-                // Wait for app to be ready
+                 """
                 sh "sleep 10"
                 sh "curl -sf http://localhost:${APP_PORT}/login || (echo 'App not responding!' && exit 1)"
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 4: Build the test Docker image
-        // ─────────────────────────────────────────
-        stage('Build Test Image') {
+         stage('Build Test Image') {
             steps {
                 echo "Building Selenium test Docker image..."
-                sh "docker build -t ${TEST_IMAGE} -f Dockerfile.test ."
+                dir('library-app') {
+                    sh "docker build -t ${TEST_IMAGE} -f Dockerfile.test ."
+                }
             }
         }
 
-        // ─────────────────────────────────────────
-        // Stage 5: Run Selenium test suite
-        // ─────────────────────────────────────────
-        stage('Run Tests') {
+         stage('Run Tests') {
             steps {
                 echo "Running Selenium tests..."
                 sh """
                     docker rm -f ${TEST_IMAGE} || true
+                    mkdir -p \$(pwd)/test-results
                     docker run \
                         --name ${TEST_IMAGE} \
                         --add-host=host.docker.internal:host-gateway \
-                        -e APP_URL=${APP_URL} \
-                        -v \$(pwd)/test-results:/tests/test-results \
+                         -e APP_URL=${APP_URL} \
                         ${TEST_IMAGE} \
                         pytest test_library.py -v --tb=short \
-                            --html=/tests/test-results/report.html \
+                            --html=/tests/report.html \
                             --self-contained-html \
-                            --junitxml=/tests/test-results/results.xml
+                            --junitxml=/tests/results.xml || true
+                    docker cp ${TEST_IMAGE}:/tests/report.html \$(pwd)/test-results/report.html || true
+                    docker cp ${TEST_IMAGE}:/tests/results.xml \$(pwd)/test-results/results.xml || true
                 """
             }
-            post {
+             post {
                 always {
-                    // Archive HTML report and JUnit XML for Jenkins
-                    sh "docker cp ${TEST_IMAGE}:/tests/report.html test-results/report.html || true"
                     junit allowEmptyResults: true, testResults: 'test-results/results.xml'
                     publishHTML(target: [
                         allowMissing         : true,
@@ -99,10 +87,7 @@ pipeline {
 
     }
 
-    // ─────────────────────────────────────────
-    // Post-pipeline: Email results to pusher
-    // ─────────────────────────────────────────
-    post {
+     post {
         always {
             script {
                 def pusherEmail = ""
@@ -133,23 +118,20 @@ Build Details:
 
 Selenium Test Report: ${env.BUILD_URL}Selenium_20Test_20Report/
 
-Please review the attached report for detailed test results.
-
 Regards,
 Jenkins CI
                 """.stripIndent()
 
                 emailext(
-                    subject     : subject,
-                    body        : body,
-                    to          : recipients,
-                    from        : env.SENDER_EMAIL,
-                    attachmentsPattern: 'test-results/report.html',
-                    mimeType    : 'text/plain'
+                    subject            : subject,
+                    body               : body,
+                    to                 : recipients,
+                    from               : env.SENDER_EMAIL,
+                    attachmentsPattern : 'test-results/report.html',
+                    mimeType           : 'text/plain'
                 )
             }
 
-            // Always tear down the app container after tests
             sh "docker rm -f ${APP_IMAGE} || true"
             sh "docker rm -f ${TEST_IMAGE} || true"
         }
