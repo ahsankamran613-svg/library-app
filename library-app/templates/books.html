@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Books — LibraryMS{% endblock %}
+{% block content %}
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:1rem;">
+    <h1 style="margin-bottom:0;">Book Catalogue</h1>
+    <a href="{{ url_for('add_book') }}" class="btn btn-primary" id="add-book-btn">+ Add Book</a>
+</div>
+
+<form method="GET" action="{{ url_for('books') }}" style="margin-bottom:1.5rem;display:flex;gap:0.75rem;" id="search-form">
+    <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search by title or author..." id="search-input" style="max-width:360px;">
+    <button type="submit" class="btn btn-secondary" id="search-btn">Search</button>
+    {% if query %}
+        <a href="{{ url_for('books') }}" class="btn btn-secondary" id="clear-search">Clear</a>
+    {% endif %}
+</form>
+
+{% if books %}
+<div style="overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;" id="books-table">
+    <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+            <th style="text-align:left;padding:0.75rem 1rem;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Title</th>
+            <th style="text-align:left;padding:0.75rem 1rem;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Author</th>
+            <th style="text-align:left;padding:0.75rem 1rem;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">ISBN</th>
+            <th style="text-align:left;padding:0.75rem 1rem;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Status</th>
+            <th style="text-align:left;padding:0.75rem 1rem;font-size:0.8rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for book in books %}
+    <tr style="border-bottom:1px solid var(--border);" class="book-row" data-book-id="{{ book.id }}">
+        <td style="padding:0.85rem 1rem;font-weight:600;">{{ book.title }}</td>
+        <td style="padding:0.85rem 1rem;color:var(--muted);">{{ book.author }}</td>
+        <td style="padding:0.85rem 1rem;color:var(--muted);font-size:0.85rem;">{{ book.isbn or '—' }}</td>
+        <td style="padding:0.85rem 1rem;">
+            {% if book.available %}
+                <span style="color:var(--success);font-size:0.82rem;font-weight:600;" class="book-status">Available</span>
+            {% else %}
+                <span style="color:var(--danger);font-size:0.82rem;font-weight:600;" class="book-status">Borrowed</span>
+            {% endif %}
+        </td>
+        <td style="padding:0.85rem 1rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <a href="{{ url_for('edit_book', book_id=book.id) }}" class="btn btn-info btn-sm edit-btn">Edit</a>
+            <form method="POST" action="{{ url_for('delete_book', book_id=book.id) }}" style="display:inline;" class="delete-form">
+                <button type="submit" class="btn btn-danger btn-sm delete-btn" onclick="return confirm('Delete this book?')">Delete</button>
+            </form>
+            {% if book.id not in borrowed_ids %}
+                <form method="POST" action="{{ url_for('borrow_book', book_id=book.id) }}" style="display:inline;" class="borrow-form">
+                    <button type="submit" class="btn btn-secondary btn-sm borrow-btn" {% if not book.available %}disabled{% endif %}>Borrow</button>
+                </form>
+            {% else %}
+                <form method="POST" action="{{ url_for('return_book', book_id=book.id) }}" style="display:inline;" class="return-form">
+                    <button type="submit" class="btn btn-success btn-sm return-btn">Return</button>
+                </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+    <div style="text-align:center;padding:4rem 2rem;color:var(--muted);" id="no-books-msg">
+        <p style="font-size:2rem;margin-bottom:1rem;">📭</p>
+        <p>No books found. {% if query %}Try a different search.{% else %}<a href="{{ url_for('add_book') }}" style="color:var(--accent);">Add your first book</a>.{% endif %}</p>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,157 @@
+pipeline {
+    agent any
+
+    environment {
+        APP_IMAGE   = "library-app"
+        TEST_IMAGE  = "library-tests"
+        APP_PORT    = "5000"
+        APP_URL     = "http://host.docker.internal:${APP_PORT}"
+        SENDER_EMAIL = "your-email@gmail.com"   // <-- Replace with your sender email
+    }
+
+    stages {
+
+        // ─────────────────────────────────────────
+        // Stage 1: Checkout source code from GitHub
+        // ─────────────────────────────────────────
+        stage('Checkout') {
+            steps {
+                echo "Checking out source code..."
+                checkout scm
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // Stage 2: Build the Flask application image
+        // ─────────────────────────────────────────
+        stage('Build App Image') {
+            steps {
+                echo "Building Flask app Docker image..."
+                sh "docker build -t ${APP_IMAGE} -f Dockerfile ."
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // Stage 3: Deploy the application container
+        // ─────────────────────────────────────────
+        stage('Deploy App') {
+            steps {
+                echo "Starting application container..."
+                sh """
+                    docker rm -f ${APP_IMAGE} || true
+                    docker run -d \
+                        --name ${APP_IMAGE} \
+                        -p ${APP_PORT}:5000 \
+                        ${APP_IMAGE}
+                """
+                // Wait for app to be ready
+                sh "sleep 10"
+                sh "curl -sf http://localhost:${APP_PORT}/login || (echo 'App not responding!' && exit 1)"
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // Stage 4: Build the test Docker image
+        // ─────────────────────────────────────────
+        stage('Build Test Image') {
+            steps {
+                echo "Building Selenium test Docker image..."
+                sh "docker build -t ${TEST_IMAGE} -f Dockerfile.test ."
+            }
+        }
+
+        // ─────────────────────────────────────────
+        // Stage 5: Run Selenium test suite
+        // ─────────────────────────────────────────
+        stage('Run Tests') {
+            steps {
+                echo "Running Selenium tests..."
+                sh """
+                    docker rm -f ${TEST_IMAGE} || true
+                    docker run \
+                        --name ${TEST_IMAGE} \
+                        --add-host=host.docker.internal:host-gateway \
+                        -e APP_URL=${APP_URL} \
+                        -v \$(pwd)/test-results:/tests/test-results \
+                        ${TEST_IMAGE} \
+                        pytest test_library.py -v --tb=short \
+                            --html=/tests/test-results/report.html \
+                            --self-contained-html \
+                            --junitxml=/tests/test-results/results.xml
+                """
+            }
+            post {
+                always {
+                    // Archive HTML report and JUnit XML for Jenkins
+                    sh "docker cp ${TEST_IMAGE}:/tests/report.html test-results/report.html || true"
+                    junit allowEmptyResults: true, testResults: 'test-results/results.xml'
+                    publishHTML(target: [
+                        allowMissing         : true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll              : true,
+                        reportDir            : 'test-results',
+                        reportFiles          : 'report.html',
+                        reportName           : 'Selenium Test Report'
+                    ])
+                }
+            }
+        }
+
+    }
+
+    // ─────────────────────────────────────────
+    // Post-pipeline: Email results to pusher
+    // ─────────────────────────────────────────
+    post {
+        always {
+            script {
+                def pusherEmail = ""
+                try {
+                    def changeLogSets = currentBuild.changeSets
+                    if (changeLogSets.size() > 0) {
+                        def lastChange = changeLogSets[0].items[0]
+                        pusherEmail = lastChange.authorEmail ?: ""
+                    }
+                } catch (Exception e) {
+                    echo "Could not determine pusher email: ${e.message}"
+                }
+
+                def recipients = pusherEmail ?: "qasimalik@gmail.com"
+                def status     = currentBuild.currentResult ?: "UNKNOWN"
+                def subject    = "Jenkins Build ${status}: Library App - Build #${env.BUILD_NUMBER}"
+                def body       = """
+Hi,
+
+Your Jenkins pipeline has completed.
+
+Build Details:
+  - Job     : ${env.JOB_NAME}
+  - Build # : ${env.BUILD_NUMBER}
+  - Status  : ${status}
+  - Duration: ${currentBuild.durationString}
+  - URL     : ${env.BUILD_URL}
+
+Selenium Test Report: ${env.BUILD_URL}Selenium_20Test_20Report/
+
+Please review the attached report for detailed test results.
+
+Regards,
+Jenkins CI
+                """.stripIndent()
+
+                emailext(
+                    subject     : subject,
+                    body        : body,
+                    to          : recipients,
+                    from        : env.SENDER_EMAIL,
+                    attachmentsPattern: 'test-results/report.html',
+                    mimeType    : 'text/plain'
+                )
+            }
+
+            // Always tear down the app container after tests
+            sh "docker rm -f ${APP_IMAGE} || true"
+            sh "docker rm -f ${TEST_IMAGE} || true"
+        }
+    }
+}

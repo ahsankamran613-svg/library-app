@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LibraryMS{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0f1117;
+            --surface: #1a1d27;
+            --border: #2a2d3e;
+            --accent: #e8c97a;
+            --accent2: #7a9ee8;
+            --text: #e4e6f0;
+            --muted: #7a7d8e;
+            --danger: #e87a7a;
+            --success: #7ae8a0;
+            --warning: #e8c97a;
+        }
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+        nav {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 64px;
+        }
+        nav .brand {
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            color: var(--accent);
+            text-decoration: none;
+            letter-spacing: 0.02em;
+        }
+        nav .nav-links { display: flex; gap: 1rem; align-items: center; }
+        nav a {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        nav a:hover { color: var(--text); background: var(--border); }
+        .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+        .alert {
+            padding: 0.85rem 1.2rem;
+            border-radius: 8px;
+            margin-bottom: 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .alert-success { background: rgba(122,232,160,0.12); color: var(--success); border: 1px solid rgba(122,232,160,0.25); }
+        .alert-danger  { background: rgba(232,122,122,0.12); color: var(--danger);  border: 1px solid rgba(232,122,122,0.25); }
+        .alert-warning { background: rgba(232,201,122,0.12); color: var(--warning); border: 1px solid rgba(232,201,122,0.25); }
+        .alert-info    { background: rgba(122,158,232,0.12); color: var(--accent2); border: 1px solid rgba(122,158,232,0.25); }
+        .btn {
+            display: inline-block;
+            padding: 0.55rem 1.2rem;
+            border-radius: 7px;
+            border: none;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .btn-primary   { background: var(--accent); color: #0f1117; }
+        .btn-primary:hover { background: #f0d88e; }
+        .btn-secondary { background: var(--border); color: var(--text); }
+        .btn-secondary:hover { background: #353848; }
+        .btn-danger    { background: rgba(232,122,122,0.15); color: var(--danger); border: 1px solid rgba(232,122,122,0.3); }
+        .btn-danger:hover { background: rgba(232,122,122,0.25); }
+        .btn-success   { background: rgba(122,232,160,0.15); color: var(--success); border: 1px solid rgba(122,232,160,0.3); }
+        .btn-success:hover { background: rgba(122,232,160,0.25); }
+        .btn-info      { background: rgba(122,158,232,0.15); color: var(--accent2); border: 1px solid rgba(122,158,232,0.3); }
+        .btn-info:hover { background: rgba(122,158,232,0.25); }
+        .btn-sm { padding: 0.35rem 0.8rem; font-size: 0.8rem; }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+        }
+        .form-group { margin-bottom: 1.2rem; }
+        .form-group label { display: block; margin-bottom: 0.45rem; font-size: 0.85rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+        .form-control {
+            width: 100%;
+            padding: 0.7rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 0.95rem;
+            transition: border-color 0.2s;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent); }
+        h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; color: var(--accent); margin-bottom: 1.5rem; }
+        h2 { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 1rem; }
+    </style>
+</head>
+<body>
+<nav>
+    <a href="{{ url_for('books') }}" class="brand">📚 LibraryMS</a>
+    <div class="nav-links">
+        {% if session.get('user_id') %}
+            <a href="{{ url_for('books') }}">Books</a>
+            <a href="{{ url_for('add_book') }}">+ Add Book</a>
+            <span style="color:var(--muted);font-size:0.85rem;">{{ session.get('username') }}</span>
+            <a href="{{ url_for('logout') }}" id="logout-link">Logout</a>
+        {% else %}
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('register') }}">Register</a>
+        {% endif %}
+    </div>
+</nav>
+<div class="container">
+    {% for cat, msg in get_flashed_messages(with_categories=True) %}
+        <div class="alert alert-{{ cat }}" id="flash-message">{{ msg }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>
