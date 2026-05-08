@@ -15,16 +15,14 @@ RUN apt-get update && apt-get install -y \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver matching installed Chrome version
-RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+') \
-    && CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d'.' -f1) \
-    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
-    || wget -q "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}" -O /tmp/cdversion \
-    && wget -q "https://chromedriver.storage.googleapis.com/$(cat /tmp/cdversion)/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
-    && unzip -o /tmp/chromedriver.zip -d /tmp/ \
-    && find /tmp -name "chromedriver" -exec mv {} /usr/local/bin/chromedriver \; \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm -rf /tmp/chromedriver*
+# Install ChromeDriver matching installed Chrome version (FIXED LOGIC)
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+') && \
+    echo "Detected Chrome version: ${CHROME_VERSION}" && \
+    wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip && \
+    unzip -o /tmp/chromedriver.zip -d /tmp/ && \
+    mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/chromedriver && \
+    chmod +x /usr/local/bin/chromedriver && \
+    rm -rf /tmp/chromedriver*
 
 WORKDIR /tests
 
