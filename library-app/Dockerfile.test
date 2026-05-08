@@ -1,33 +1,35 @@
 # Dockerfile for running Selenium tests with headless Chrome
 FROM python:3.11-slim
 
-# Install Chrome and dependencies
+# Install Chrome using the modern method (no apt-key)
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     unzip \
     curl \
-    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+    ca-certificates \
+    && mkdir -p /etc/apt/keyrings \
+    && wget -q -O /etc/apt/keyrings/google-chrome.asc https://dl.google.com/linux/linux_signing_key.pub \
+    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.asc] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update \
     && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
-# Install ChromeDriver matching Chrome version
-RUN CHROME_VERSION=$(google-chrome --version | awk '{print $3}' | cut -d'.' -f1) \
-    && CHROMEDRIVER_URL=$(curl -s "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" \
-        | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['channels']['Stable']['downloads']['chromedriver'][0]['url'])") \
-    && wget -q "$CHROMEDRIVER_URL" -O /tmp/chromedriver.zip \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
+# Install ChromeDriver matching installed Chrome version
+RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+\.\d+') \
+    && CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d'.' -f1) \
+    && wget -q "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" -O /tmp/chromedriver.zip \
+    || wget -q "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_MAJOR}" -O /tmp/cdversion \
+    && wget -q "https://chromedriver.storage.googleapis.com/$(cat /tmp/cdversion)/chromedriver_linux64.zip" -O /tmp/chromedriver.zip \
+    && unzip -o /tmp/chromedriver.zip -d /tmp/ \
     && find /tmp -name "chromedriver" -exec mv {} /usr/local/bin/chromedriver \; \
     && chmod +x /usr/local/bin/chromedriver \
     && rm -rf /tmp/chromedriver*
 
 WORKDIR /tests
 
-COPY requirements.txt .
 RUN pip install --no-cache-dir selenium pytest pytest-html
 
 COPY tests/ .
 
-CMD ["pytest", "test_library.py", "-v", "--tb=short", "--html=report.html", "--self-contained-html"]
+CMD ["pytest", "test_library.py", "-v", "--tb=short", "--html=report.html", "--self-contained-html", "--junitxml=results.xml"]
